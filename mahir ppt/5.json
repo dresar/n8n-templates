@@ -1,0 +1,87 @@
+{
+    "name": "DOKUMENTASI: Tutorial & Setup MahirPPT",
+    "nodes": [
+      {
+        "parameters": {
+          "content": "## 📚 1. PERSIAPAN GOOGLE SHEETS\n\nBuat 1 File Spreadsheet, lalu bikin **3 Tab (Sheet)** di bawahnya dengan nama & kolom persis seperti ini:\n\n### **Sheet 1: `knowledge_base`**\n(Untuk bot belajar & jawab otomatis)\n- Kolom A: `keyword` (huruf kecil semua)\n- Kolom B: `jawaban` (Boleh isi %NAMA% atau %WAKTU%)\n\n### **Sheet 2: `produk_katalog`**\n(Untuk database produk)\n- Kolom A: `kode_produk` (Contoh: BESTSELLER)\n- Kolom B: `nama_produk`\n- Kolom C: `harga`\n- Kolom D: `link_gambar` (Link harus akhiran .jpg/.png)\n\n### **Sheet 3: `log_penjualan`**\n(Untuk mencatat orang transfer)\n- Kolom A: `nama`\n- Kolom B: `nomor`\n- Kolom C: `status`",
+          "height": 454,
+          "width": 386,
+          "color": 3
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          0,
+          0
+        ],
+        "id": "docs-sheet",
+        "name": "Docs: Google Sheets"
+      },
+      {
+        "parameters": {
+          "content": "## 📱 2. FORMAT NOMOR & GOWA\n\n### **Format Nomor WA**\n- GoWA otomatis membaca nomor sebagai: `62812345678` (Tanpa +). \n- Saat mengirim pesan (Send Text/Media), gunakan format yang sama.\n- Variabel dari webhook: `{{ $('Persiapan Data').first().json.sender_number }}`\n\n### **Credential Setup**\n1. Pastikan Container GoWA sudah Running di CasaOS.\n2. Buka n8n -> Credentials -> New -> Cari \"GoWA\".\n3. Isi Host: `http://gowa-official:3000` (sesuai setup CasaOS kamu).\n4. Test Connection.",
+          "height": 331,
+          "width": 393,
+          "color": 4
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          420,
+          0
+        ],
+        "id": "docs-wa",
+        "name": "Docs: WhatsApp"
+      },
+      {
+        "parameters": {
+          "content": "## 🧠 3. SETUP AI (GROQ & GEMINI)\n\n### **Groq (Otak Kiri/Logika)**\n- Fungsi: Menghemat biaya, kerja cepat memilah niat user.\n- Model: Gunakan `llama3-8b-8192` (Cepat & Gratis).\n- Prompt Wajib: \"Jawab SATU KATA saja: CATALOG / FREE / CHAT\".\n\n### **Gemini (Otak Kanan/Kreatif)**\n- Fungsi: Salesman yang ramah.\n- Model: Gunakan `gemini-pro`.\n- Prompt: Berikan persona \"Kamu adalah Eka Owner MahirPPT\".",
+          "height": 280,
+          "width": 386,
+          "color": 5
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          0,
+          480
+        ],
+        "id": "docs-ai",
+        "name": "Docs: AI Setup"
+      },
+      {
+        "parameters": {
+          "content": "## ⚡ 4. VARIABEL AJAIB (CODE)\n\nDi database sheet kolom `jawaban`, kamu bisa pakai kode rahasia ini agar bot terasa personal:\n\n- `%NAMA%` -> Akan berubah otomatis jadi nama user (Misal: \"Halo Budi\")\n- `%WAKTU%` -> Berubah jadi Pagi/Siang/Sore (Misal: \"Selamat Malam\")\n\n**Contoh isi sel Excel:**\n\"Halo Kak %NAMA%, selamat %WAKTU%! Terima kasih sudah mampir.\"",
+          "height": 280,
+          "width": 393,
+          "color": 6
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          420,
+          360
+        ],
+        "id": "docs-code",
+        "name": "Docs: Kode Variabel"
+      },
+      {
+        "parameters": {
+          "content": "## 🚀 5. CHECKLIST SEBELUM START\n\n1. [ ] Import JSON Workflow Utama.\n2. [ ] Double klik Node Sheet -> Pilih File Sheet kamu.\n3. [ ] Double klik Node AI -> Pilih Credential.\n4. [ ] Cek Node GoWA Katalog -> Pastikan URL Gambarnya hidup (bisa dibuka di browser).\n5. [ ] Klik \"Execute Workflow\" -> Coba chat ke bot \"Tes\".\n6. [ ] Kalau sukses -> Klik tombol **Active** di pojok kanan atas.",
+          "height": 240,
+          "width": 393,
+          "color": 2
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          420,
+          660
+        ],
+        "id": "docs-checklist",
+        "name": "Docs: Checklist"
+      }
+    ],
+    "pinData": {},
+    "connections": {}
+  }

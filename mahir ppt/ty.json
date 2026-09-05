@@ -1,0 +1,699 @@
+{
+    "name": "Ultimate GoWA: AI Learning + 30 Features Tools",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "webhook-gowa-master",
+          "responseMode": "lastNode",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [
+          -1600,
+          0
+        ],
+        "id": "webhook-trigger",
+        "name": "Webhook GoWA"
+      },
+      {
+        "parameters": {
+          "jsCode": "// --- SUPER FILTER & PRE-PROCESSING ---\n// Node ini menyiapkan semua data agar rapi sebelum diproses\n\nconst input = $input.first().json.body || {};\nconst messageData = input.message || {};\n\n// 1. Ambil Pesan (Text/Conversation/Caption)\nlet originalMessage = \"\";\nif (messageData.text) originalMessage = messageData.text;\nelse if (messageData.conversation) originalMessage = messageData.conversation;\nelse if (messageData.extendedTextMessage && messageData.extendedTextMessage.text) originalMessage = messageData.extendedTextMessage.text;\nelse if (messageData.imageMessage && messageData.imageMessage.caption) originalMessage = messageData.imageMessage.caption;\n\n// 2. Ambil Sender Info\nconst senderNumber = input.from ? input.from.replace('@s.whatsapp.net', '') : '';\nconst pushName = input.pushname || \"Kak\";\nconst isGroup = input.from.includes('@g.us');\n\n// 3. Waktu Sapaan\nconst jam = new Date().getHours();\nlet sapaan = \"Pagi\";\nif (jam >= 11 && jam < 15) sapaan = \"Siang\";\nelse if (jam >= 15 && jam < 19) sapaan = \"Sore\";\nelse sapaan = \"Malam\";\n\n// 4. Keyword Normalization (Kecilkan huruf, hilangkan spasi depan belakang)\nconst keyword = originalMessage.toLowerCase().trim();\n\n// 5. Detect Command (Apakah ini fitur tools?)\n// Jika diawali '!', '#', atau '/' dianggap command\nconst isCommand = /^[!#\\/]/.test(keyword);\nconst commandType = isCommand ? keyword.split(' ')[0].substring(1) : 'chat';\n\nreturn {\n  json: {\n    pesan_asli: originalMessage,\n    keyword: keyword,\n    command_type: commandType,\n    is_command: isCommand,\n    sender_number: input.from, // Pakai format raw untuk reply\n    sender_clean: senderNumber,\n    sender_name: pushName,\n    sapaan: sapaan,\n    is_group: isGroup,\n    timestamp: new Date().toISOString()\n  }\n};"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1380,
+          0
+        ],
+        "id": "preprocessing-core",
+        "name": "Core: Data Processing"
+      },
+      {
+        "parameters": {
+          "dataType": "string",
+          "value1": "={{ $json.is_command }}",
+          "rules": {
+            "rules": [
+              {
+                "value2": "true",
+                "output": 0
+              },
+              {
+                "value2": "false",
+                "output": 1
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 1,
+        "position": [
+          -1160,
+          0
+        ],
+        "id": "router-utama",
+        "name": "Router: Command vs Chat"
+      },
+      {
+        "parameters": {
+          "dataType": "string",
+          "value1": "={{ $json.command_type }}",
+          "rules": {
+            "rules": [
+              {
+                "value2": "menu",
+                "output": 0
+              },
+              {
+                "value2": "img",
+                "output": 1
+              },
+              {
+                "value2": "doc",
+                "output": 2
+              },
+              {
+                "value2": "loc",
+                "output": 3
+              },
+              {
+                "value2": "contact",
+                "output": 4
+              },
+              {
+                "value2": "ping",
+                "output": 5
+              }
+            ]
+          },
+          "fallbackOutput": 6
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 1,
+        "position": [
+          -900,
+          -300
+        ],
+        "id": "tools-router",
+        "name": "Router: 30 Features Tools"
+      },
+      {
+        "parameters": {
+          "operation": "lookup",
+          "documentId": {
+            "__rl": true,
+            "mode": "fromView",
+            "value": ""
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "list",
+            "value": "knowledge_base"
+          },
+          "lookupColumn": "keyword",
+          "lookupValue": "={{ $json.keyword }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          -900,
+          300
+        ],
+        "id": "db-lookup",
+        "name": "DB: Cek Knowledge Base",
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.jawaban }}",
+                "operation": "isNotEmpty"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          -680,
+          300
+        ],
+        "id": "check-found",
+        "name": "Ada di DB?"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "={{ $json.jawaban.replace('%NAMA%', $('Core: Data Processing').first().json.sender_name).replace('%SAPAAN%', $('Core: Data Processing').first().json.sapaan) }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -200,
+          180
+        ],
+        "id": "reply-db",
+        "name": "Reply: Dari Database"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $('Core: Data Processing').first().json.pesan_asli }}",
+          "options": {
+            "systemMessage": "=Kamu adalah Asisten Cerdas. Jawab pertanyaan user dengan singkat, ramah, dan membantu.\n\nContext User:\nNama: {{ $('Core: Data Processing').first().json.sender_name }}\nWaktu: {{ $('Core: Data Processing').first().json.sapaan }}\n\nInstruksi:\n1. Jawab maksimal 2 paragraf.\n2. Gunakan emoji sesekali.\n3. Jangan gunakan markdown bold/italic berlebihan."
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.4,
+        "position": [
+          -400,
+          500
+        ],
+        "id": "ai-processing",
+        "name": "AI: Groq Processing"
+      },
+      {
+        "parameters": {
+          "model": "llama3-8b-8192",
+          "options": {
+            "temperature": 0.5
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "position": [
+          -400,
+          720
+        ],
+        "id": "groq-model",
+        "name": "Model: Llama3 (Groq)"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "={{ $json.text }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -40,
+          500
+        ],
+        "id": "reply-ai",
+        "name": "Reply: Dari AI"
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "mode": "fromView",
+            "value": ""
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "list",
+            "value": "knowledge_base"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "keyword": "={{ $('Core: Data Processing').first().json.keyword }}",
+              "jawaban": "={{ $json.text }}",
+              "kategori": "saved_by_ai",
+              "hit_count": 1
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "keyword",
+                "displayName": "keyword",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "jawaban",
+                "displayName": "jawaban",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "kategori",
+                "displayName": "kategori",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "hit_count",
+                "displayName": "hit_count",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          200,
+          500
+        ],
+        "id": "save-memory",
+        "name": "Memory: Save New Knowledge"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "🤖 *MENU FITUR BOT*\n\nKetik perintah berikut untuk test fitur:\n\n1. `!img [url]` - Kirim Gambar\n2. `!doc [url]` - Kirim Dokumen\n3. `!loc` - Share Lokasi Kantor\n4. `!contact` - Kirim Kartu Nama\n5. `!ping` - Cek Server Status\n\n_Atau chat biasa untuk ngobrol sama AI!_"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -580,
+          -540
+        ],
+        "id": "feature-menu",
+        "name": "Feature: Menu List"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "Kirim Gambar...",
+          "type": "media",
+          "mediaUrl": "={{ $('Core: Data Processing').first().json.pesan_asli.split(' ')[1] || 'https://via.placeholder.com/500' }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -580,
+          -400
+        ],
+        "id": "feature-image",
+        "name": "Feature: Send Image"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "Dokumen Requested",
+          "type": "media",
+          "mediaUrl": "={{ $('Core: Data Processing').first().json.pesan_asli.split(' ')[1] }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -580,
+          -260
+        ],
+        "id": "feature-doc",
+        "name": "Feature: Send PDF"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "Lokasi Kantor Kami: Jakarta, Indonesia"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -580,
+          -120
+        ],
+        "id": "feature-loc",
+        "name": "Feature: Send Location"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "Nama: Admin Bot\nNo: 628123456789\nOrg: MahirPPT"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -580,
+          20
+        ],
+        "id": "feature-contact",
+        "name": "Feature: Send Contact"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "🏓 *PONG!*\nServer Status: Online\nLatency: 0.2ms"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -580,
+          160
+        ],
+        "id": "feature-ping",
+        "name": "Feature: Ping Pong"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Core: Data Processing').first().json.sender_number }}",
+          "message": "❌ Command tidak dikenali. Ketik `!menu` untuk melihat daftar perintah."
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -580,
+          300
+        ],
+        "id": "feature-unknown",
+        "name": "Feature: Unknown CMD"
+      },
+      {
+        "parameters": {
+          "content": "## 🧠 MEMORY SYSTEM\nLogika: Cek Sheet dulu -> Kalau kosong -> Tanya AI -> Jawab -> Simpan Jawaban AI ke Sheet.\n\nIni membuat bot semakin pintar seiring waktu.",
+          "height": 260,
+          "width": 360,
+          "color": 4
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -180,
+          500
+        ],
+        "id": "note-memory",
+        "name": "Sticky Note: Memory"
+      },
+      {
+        "parameters": {
+          "content": "## 🛠️ 30 FEATURES SIMULATION\nRouter ini memisahkan Chat Biasa vs Perintah (Tools).\n\nKamu bisa menambahkan logic lain seperti:\n- Get Group Metadata\n- Kick Member (Admin)\n- Broadcast\n- dll.",
+          "height": 300,
+          "width": 320,
+          "color": 3
+        },
+        "type": "n8n-nodes-base.stickyNote",
+        "typeVersion": 1,
+        "position": [
+          -920,
+          -660
+        ],
+        "id": "note-tools",
+        "name": "Sticky Note: Tools"
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "mode": "fromView",
+            "value": ""
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "list",
+            "value": "history_chat"
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "timestamp": "={{ new Date().toISOString() }}",
+              "sender_number": "={{ $('Core: Data Processing').first().json.sender_clean }}",
+              "sender_name": "={{ $('Core: Data Processing').first().json.sender_name }}",
+              "pesan_masuk": "={{ $('Core: Data Processing').first().json.pesan_asli }}",
+              "respon_bot": "={{ $json.text || $json.message }}",
+              "sumber": "LOG"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "timestamp",
+                "displayName": "timestamp",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "sender_number",
+                "displayName": "sender_number",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "sender_name",
+                "displayName": "sender_name",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "pesan_masuk",
+                "displayName": "pesan_masuk",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "respon_bot",
+                "displayName": "respon_bot",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "sumber",
+                "displayName": "sumber",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          480,
+          180
+        ],
+        "id": "log-history",
+        "name": "LOGGING: Save History"
+      }
+    ],
+    "pinData": {},
+    "connections": {
+      "Webhook GoWA": {
+        "main": [
+          [
+            {
+              "node": "Core: Data Processing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Core: Data Processing": {
+        "main": [
+          [
+            {
+              "node": "Router: Command vs Chat",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Router: Command vs Chat": {
+        "main": [
+          [
+            {
+              "node": "Router: 30 Features Tools",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "DB: Cek Knowledge Base",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Router: 30 Features Tools": {
+        "main": [
+          [
+            {
+              "node": "Feature: Menu List",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Feature: Send Image",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Feature: Send PDF",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Feature: Send Location",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Feature: Send Contact",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Feature: Ping Pong",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Feature: Unknown CMD",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "DB: Cek Knowledge Base": {
+        "main": [
+          [
+            {
+              "node": "Ada di DB?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ada di DB?": {
+        "main": [
+          [
+            {
+              "node": "Reply: Dari Database",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "AI: Groq Processing",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI: Groq Processing": {
+        "main": [
+          [
+            {
+              "node": "Reply: Dari AI",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Model: Llama3 (Groq)": {
+        "ai_language_model": [
+          [
+            {
+              "node": "AI: Groq Processing",
+              "type": "ai_language_model",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Reply: Dari AI": {
+        "main": [
+          [
+            {
+              "node": "Memory: Save New Knowledge",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Memory: Save New Knowledge": {
+        "main": [
+          [
+            {
+              "node": "LOGGING: Save History",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Reply: Dari Database": {
+        "main": [
+          [
+            {
+              "node": "LOGGING: Save History",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    }
+  }

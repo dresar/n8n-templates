@@ -1,0 +1,449 @@
+{
+    "name": "MahirPPT: Sheet First -> AI Second",
+    "nodes": [
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "gowa-listener"
+        },
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 1,
+        "position": [
+          -1600,
+          0
+        ],
+        "id": "webhook",
+        "name": "Webhook GoWA"
+      },
+      {
+        "parameters": {
+          "jsCode": "// PERSIAPAN DATA\nconst inputData = $input.first().json.body || {};\nconst namaUser = inputData.pushname || \"Kak\";\nconst jam = new Date().getHours();\nlet sapaan = \"Pagi\";\nif (jam >= 11 && jam < 15) sapaan = \"Siang\";\nelse if (jam >= 15 && jam < 19) sapaan = \"Sore\";\nelse if (jam >= 19 || jam < 4) sapaan = \"Malam\";\n\nlet msg = \"\";\nif (inputData.message && inputData.message.text) {\n  msg = inputData.message.text;\n} else if (inputData.message && inputData.message.conversation) {\n  msg = inputData.message.conversation;\n}\n\nreturn {\n  json: {\n    keyword: msg.toLowerCase().trim(),\n    pesan_asli: msg,\n    sender_number: inputData.from,\n    sender_name: namaUser,\n    waktu: sapaan\n  }\n};"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -1380,
+          0
+        ],
+        "id": "persiapan-data",
+        "name": "Persiapan Data"
+      },
+      {
+        "parameters": {
+          "operation": "lookup",
+          "documentId": {
+            "__rl": true,
+            "mode": "fromView",
+            "value": ""
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "list",
+            "value": ""
+          },
+          "lookupColumn": "keyword",
+          "lookupValue": "={{ $('Persiapan Data').first().json.keyword }}"
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          -1160,
+          0
+        ],
+        "id": "cek-db-duluan",
+        "name": "Cek Database Dulu",
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "boolean": [
+              {
+                "value1": "={{ $json.jawaban }}",
+                "operation": "isNotEmpty"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          -940,
+          0
+        ],
+        "id": "cek-ketemu",
+        "name": "Ada Jawaban?"
+      },
+      {
+        "parameters": {
+          "jsCode": "// JALUR ATAS (ADA DI SHEET)\nlet jwb = $input.first().json.jawaban;\nconst u = $('Persiapan Data').first().json;\njwb = jwb.replace(/%NAMA%/g, u.sender_name);\nreturn { json: { final: jwb } };"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -680,
+          -180
+        ],
+        "id": "format-sheet",
+        "name": "Format Sheet"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+          "message": "={{ $json.final }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -460,
+          -180
+        ],
+        "id": "reply-manual",
+        "name": "Reply (Jalur Atas)"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "=Analisa: \"{{ $('Persiapan Data').first().json.pesan_asli }}\"\n\nKategorikan (Pilih satu):\n1. CATALOG (Minta gambar)\n2. FREE (Minta file gratis)\n3. CHAT (Tanya jawab)\n\nJawab: CATALOG / FREE / CHAT"
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.4,
+        "position": [
+          -680,
+          140
+        ],
+        "id": "otak-groq",
+        "name": "Jalur Bawah (Groq)"
+      },
+      {
+        "parameters": {},
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "position": [
+          -700,
+          360
+        ],
+        "id": "model-groq",
+        "name": "Groq Chat Model"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.text.trim() }}",
+                "value2": "CATALOG"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          -340,
+          140
+        ],
+        "id": "cek-katalog",
+        "name": "Minta Katalog?"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+          "message": "⚠️ KLIK SAYA -> GANTI JADI 'SEND MEDIA FILES' (IMAGE)\nIsi URL Gambar Katalog."
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          -60,
+          40
+        ],
+        "id": "reply-katalog",
+        "name": "Kirim Katalog"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.text.trim() }}",
+                "value2": "FREE"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          -60,
+          240
+        ],
+        "id": "cek-free",
+        "name": "Minta Freebie?"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+          "message": "⚠️ KLIK SAYA -> GANTI JADI 'SEND MEDIA FILES' (DOCUMENT)\nIsi URL PDF Gratis."
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          220,
+          140
+        ],
+        "id": "reply-free",
+        "name": "Kirim Freebie"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $('Persiapan Data').first().json.pesan_asli }}",
+          "options": {
+            "systemMessage": "Kamu Eka Owner MahirPPT. Jawab ramah & singkat."
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.4,
+        "position": [
+          220,
+          340
+        ],
+        "id": "tanya-gemini",
+        "name": "Tanya Gemini"
+      },
+      {
+        "parameters": {},
+        "type": "@n8n/n8n-nodes-langchain.googleGeminiChatModel",
+        "typeVersion": 1,
+        "position": [
+          180,
+          560
+        ],
+        "id": "model-gemini",
+        "name": "Google Gemini"
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": {
+            "__rl": true,
+            "mode": "fromView",
+            "value": ""
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "list",
+            "value": ""
+          },
+          "columns": {
+            "mappingMode": "defineBelow",
+            "value": {
+              "keyword": "={{ $('Persiapan Data').first().json.keyword }}",
+              "jawaban": "={{ $json.text }}"
+            },
+            "matchingColumns": [],
+            "schema": [
+              {
+                "id": "keyword",
+                "displayName": "keyword",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              },
+              {
+                "id": "jawaban",
+                "displayName": "jawaban",
+                "required": false,
+                "defaultMatch": false,
+                "display": true,
+                "type": "string",
+                "readOnly": false,
+                "removed": false
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          580,
+          340
+        ],
+        "id": "simpan-db",
+        "name": "Simpan Jawaban"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+          "message": "={{ $json.text }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          800,
+          340
+        ],
+        "id": "reply-ai",
+        "name": "Reply Gemini"
+      }
+    ],
+    "pinData": {},
+    "connections": {
+      "Webhook GoWA": {
+        "main": [
+          [
+            {
+              "node": "Persiapan Data",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Persiapan Data": {
+        "main": [
+          [
+            {
+              "node": "Cek Database Dulu",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Cek Database Dulu": {
+        "main": [
+          [
+            {
+              "node": "Ada Jawaban?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ada Jawaban?": {
+        "main": [
+          [
+            {
+              "node": "Format Sheet",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Jalur Bawah (Groq)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Format Sheet": {
+        "main": [
+          [
+            {
+              "node": "Reply (Jalur Atas)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Jalur Bawah (Groq)": {
+        "main": [
+          [
+            {
+              "node": "Minta Katalog?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Groq Chat Model": {
+        "ai_language_model": [
+          [
+            {
+              "node": "Jalur Bawah (Groq)",
+              "type": "ai_language_model",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Minta Katalog?": {
+        "main": [
+          [
+            {
+              "node": "Kirim Katalog",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Minta Freebie?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Minta Freebie?": {
+        "main": [
+          [
+            {
+              "node": "Kirim Freebie",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Tanya Gemini",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Google Gemini": {
+        "ai_language_model": [
+          [
+            {
+              "node": "Tanya Gemini",
+              "type": "ai_language_model",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Tanya Gemini": {
+        "main": [
+          [
+            {
+              "node": "Simpan Jawaban",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Simpan Jawaban": {
+        "main": [
+          [
+            {
+              "node": "Reply Gemini",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    }
+  }

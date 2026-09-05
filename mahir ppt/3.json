@@ -1,0 +1,109 @@
+{
+    "name": "Part 3: DB & Gemini",
+    "nodes": [
+      {
+        "parameters": {
+          "operation": "lookup",
+          "documentId": { "__rl": true, "mode": "fromView", "value": "" },
+          "sheetName": { "__rl": true, "mode": "list", "value": "" },
+          "lookupColumn": "keyword",
+          "lookupValue": "={{ $json.keyword }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [0, 0],
+        "id": "cari-database",
+        "name": "Cek Database",
+        "alwaysOutputData": true
+      },
+      {
+        "parameters": {
+          "conditions": { "boolean": [{ "value1": "={{ $json.jawaban }}", "operation": "isNotEmpty" }] }
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [220, 0],
+        "id": "cek-ketemu",
+        "name": "Ketemu di Sheet?"
+      },
+      {
+        "parameters": {
+          "jsCode": "// FORMAT\nlet jwb = $input.first().json.jawaban;\nreturn { json: { final_message: jwb } };"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [440, -100],
+        "id": "format-sheet",
+        "name": "Format Sheet"
+      },
+      {
+        "parameters": {
+          "phone": "628xxx",
+          "message": "={{ $json.final_message }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [660, -100],
+        "id": "kirim-manual",
+        "name": "Reply: Dari Sheet"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "Jawab sebagai Owner MahirPPT",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.4,
+        "position": [440, 150],
+        "id": "tanya-gemini",
+        "name": "Tanya Gemini"
+      },
+      {
+        "parameters": {},
+        "type": "@n8n/n8n-nodes-langchain.googleGeminiChatModel",
+        "typeVersion": 1,
+        "position": [440, 350],
+        "id": "model-gemini",
+        "name": "Google Gemini"
+      },
+      {
+        "parameters": {
+          "operation": "append",
+          "documentId": { "__rl": true, "mode": "fromView", "value": "" },
+          "sheetName": { "__rl": true, "mode": "list", "value": "" },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [800, 150],
+        "id": "auto-learn",
+        "name": "Simpan ke DB"
+      },
+      {
+        "parameters": {
+          "phone": "628xxx",
+          "message": "={{ $json.text }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [1020, 150],
+        "id": "kirim-ai",
+        "name": "Reply: Dari Gemini"
+      }
+    ],
+    "connections": {
+      "Cek Database": { "main": [[{ "node": "Ketemu di Sheet?", "type": "main", "index": 0 }]] },
+      "Ketemu di Sheet?": {
+        "main": [
+          [{ "node": "Format Sheet", "type": "main", "index": 0 }],
+          [{ "node": "Tanya Gemini", "type": "main", "index": 0 }]
+        ]
+      },
+      "Format Sheet": { "main": [[{ "node": "Reply: Dari Sheet", "type": "main", "index": 0 }]] },
+      "Google Gemini": { "ai_language_model": [[{ "node": "Tanya Gemini", "type": "ai_language_model", "index": 0 }]] },
+      "Tanya Gemini": { "main": [[{ "node": "Simpan ke DB", "type": "main", "index": 0 }]] },
+      "Simpan ke DB": { "main": [[{ "node": "Reply: Dari Gemini", "type": "main", "index": 0 }]] }
+    }
+  }

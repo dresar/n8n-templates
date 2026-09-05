@@ -1,0 +1,210 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "=Analisa niat user: \"{{ $('Persiapan Data').first().json.pesan_asli }}\"\n\nTentukan kategori (Jawab SATU KATA saja):\n1. CATALOG (Tanya produk, template, fitur, harga, atau list)\n2. FREE (Minta gratisan)\n3. CHAT (Lainnya)\n\nJawab: CATALOG / FREE / CHAT",
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.4,
+        "position": [
+          0,
+          0
+        ],
+        "id": "groq-classifier",
+        "name": "Groq: Klasifikasi"
+      },
+      {
+        "parameters": {
+          "options": {}
+        },
+        "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+        "typeVersion": 1,
+        "position": [
+          -40,
+          220
+        ],
+        "id": "model-groq",
+        "name": "Groq Model"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "string": [
+              {
+                "value1": "={{ $json.text.trim() }}",
+                "value2": "CATALOG"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 1,
+        "position": [
+          340,
+          0
+        ],
+        "id": "cek-is-katalog",
+        "name": "Is Catalog?"
+      },
+      {
+        "parameters": {
+          "operation": "read",
+          "documentId": {
+            "__rl": true,
+            "mode": "fromView",
+            "value": ""
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "list",
+            "value": "produk_katalog"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          600,
+          -120
+        ],
+        "id": "ambil-gudang-produk",
+        "name": "Ambil Semua Produk"
+      },
+      {
+        "parameters": {
+          "jsCode": "// MENGGABUNGKAN PESAN USER + DATA SHEET UNTUK GEMINI\nconst allProducts = $input.all();\nconst originalMsg = $('Persiapan Data').first().json.pesan_asli;\n\nlet productContext = \"DAFTAR PRODUK MAHIRPPT:\\n\";\nallProducts.forEach((p, i) => {\n  const data = p.json;\n  // Kita pakai nomor urut (i+1) sebagai referensi\n  productContext += `${i + 1}. ${data.nama_produk} (Harga: ${data.harga})\\n`;\n});\n\nreturn {\n  json: {\n    context_produk: productContext,\n    pesan_user: originalMsg\n  }\n};\n"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          820,
+          -120
+        ],
+        "id": "siapkan-data-ai",
+        "name": "Siapkan Data untuk AI"
+      },
+      {
+        "parameters": {
+          "promptType": "define",
+          "text": "={{ $json.pesan_user }}",
+          "options": {
+            "systemMessage": "=Kamu adalah Eka, Owner MahirPPT.\n\nTUGAS:\nCari produk yang paling RELEVAN dengan permintaan user dari daftar ini:\n{{ $json.context_produk }}\n\nATURAN JAWAB:\n1. Jawab dengan ramah dan sangat singkat.\n2. Sebutkan maksimal 2-3 pilihan produk yang paling nyambung dengan pertanyaan user.\n3. Berikan nomor urut produknya dengan jelas.\n4. WAJIB di akhir jawaban, berikan instruksi: \"Ketik angkanya saja (contoh: 1) untuk melihat detail fitur dan gambar preview-nya ya Kak!\"\n5. JANGAN gunakan simbol bintang (*) atau pagar (#)."
+          }
+        },
+        "type": "@n8n/n8n-nodes-langchain.chainLlm",
+        "typeVersion": 1.4,
+        "position": [
+          1040,
+          -120
+        ],
+        "id": "gemini-salesman",
+        "name": "Gemini: Sales Manager"
+      },
+      {
+        "parameters": {},
+        "type": "@n8n/n8n-nodes-langchain.googleGeminiChatModel",
+        "typeVersion": 1,
+        "position": [
+          1000,
+          140
+        ],
+        "id": "model-gemini",
+        "name": "Gemini Model"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+          "message": "={{ $json.text.replace(/[*#_]/g, '') }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          1340,
+          -120
+        ],
+        "id": "kirim-ke-wa",
+        "name": "Kirim ke WA"
+      }
+    ],
+    "connections": {
+      "Groq: Klasifikasi": {
+        "main": [
+          [
+            {
+              "node": "Is Catalog?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Groq Model": {
+        "ai_language_model": [
+          [
+            {
+              "node": "Groq: Klasifikasi",
+              "type": "ai_language_model",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Is Catalog?": {
+        "main": [
+          [
+            {
+              "node": "Ambil Semua Produk",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Ambil Semua Produk": {
+        "main": [
+          [
+            {
+              "node": "Siapkan Data untuk AI",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Siapkan Data untuk AI": {
+        "main": [
+          [
+            {
+              "node": "Gemini: Sales Manager",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini Model": {
+        "ai_language_model": [
+          [
+            {
+              "node": "Gemini: Sales Manager",
+              "type": "ai_language_model",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Gemini: Sales Manager": {
+        "main": [
+          [
+            {
+              "node": "Kirim ke WA",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    }
+  }

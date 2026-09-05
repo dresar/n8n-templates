@@ -1,0 +1,433 @@
+{
+  "name": "MahirPPT: Clean Import (Fixed AI)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gowa-listener",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        0
+      ],
+      "id": "webhook",
+      "name": "Webhook GoWA"
+    },
+    {
+      "parameters": {
+        "jsCode": "// PERSIAPAN DATA\nconst inputData = $input.first().json.body || {};\nconst namaUser = inputData.pushname || \"Kak\";\nconst jam = new Date().getHours();\nlet sapaanWaktu = \"Pagi\";\nif (jam >= 11 && jam < 15) sapaanWaktu = \"Siang\";\nelse if (jam >= 15 && jam < 19) sapaanWaktu = \"Sore\";\nelse if (jam >= 19 || jam < 4) sapaanWaktu = \"Malam\";\n\nlet msg = \"\";\nif (inputData.message && inputData.message.text) {\n  msg = inputData.message.text;\n} else if (inputData.message && inputData.message.conversation) {\n  msg = inputData.message.conversation;\n}\n\nreturn {\n  json: {\n    keyword: msg.toLowerCase().trim(),\n    pesan_asli: msg,\n    sender_number: inputData.from,\n    sender_name: namaUser,\n    waktu: sapaanWaktu\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1060,
+        0
+      ],
+      "id": "persiapan-data",
+      "name": "Persiapan Data"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analisa pesan ini: \"{{ $('Persiapan Data').first().json.pesan_asli }}\"\n\nKategorikan niat user:\n1. CATALOG (Minta gambar)\n2. FREE (Minta file gratis)\n3. CHAT (Tanya jawab)\n\nJawab satu kata: CATALOG / FREE / CHAT",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -840,
+        0
+      ],
+      "id": "otak-groq",
+      "name": "Klasifikasi Niat (Groq)"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        220
+      ],
+      "id": "model-groq",
+      "name": "Groq Chat Model"
+    },
+    {
+      "parameters": {
+        "dataType": "string",
+        "value1": "={{ $json.text.trim() }}",
+        "rules": {
+          "rules": [
+            {
+              "value2": "CATALOG",
+              "output": 0
+            },
+            {
+              "value2": "FREE",
+              "output": 1
+            },
+            {
+              "value2": "CHAT",
+              "output": 2
+            }
+          ]
+        },
+        "fallbackOutput": 2
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -500,
+        0
+      ],
+      "id": "router-logika",
+      "name": "Router Logika"
+    },
+    {
+      "parameters": {
+        "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+        "message": "⚠️ KLIK SAYA -> UBAH JADI 'SEND MEDIA FILES' -> PILIH IMAGE\nIsi URL Gambar Katalog Kamu."
+      },
+      "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+      "typeVersion": 1,
+      "position": [
+        -140,
+        -180
+      ],
+      "id": "kirim-katalog",
+      "name": "GoWA: Kirim Katalog (Edit)"
+    },
+    {
+      "parameters": {
+        "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+        "message": "⚠️ KLIK SAYA -> UBAH JADI 'SEND MEDIA FILES' -> PILIH DOCUMENT\nIsi URL File PDF Kamu."
+      },
+      "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+      "typeVersion": 1,
+      "position": [
+        -140,
+        20
+      ],
+      "id": "kirim-freebie",
+      "name": "GoWA: Kirim Freebie (Edit)"
+    },
+    {
+      "parameters": {
+        "operation": "lookup",
+        "documentId": {
+          "__rl": true,
+          "mode": "fromView",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "lookupColumn": "keyword",
+        "lookupValue": "={{ $('Persiapan Data').first().json.keyword }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -140,
+        220
+      ],
+      "id": "cari-database",
+      "name": "Cek Database",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.jawaban }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        80,
+        220
+      ],
+      "id": "cek-ketemu",
+      "name": "Ketemu di Sheet?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// FORMAT DATA\nlet pesanJadi = $input.first().json.jawaban;\nconst dataUser = $('Persiapan Data').first().json;\n\npesanJadi = pesanJadi.replace(/%NAMA%/g, dataUser.sender_name);\npesanJadi = pesanJadi.replace(/%WAKTU%/g, dataUser.waktu);\n\nreturn {\n  json: {\n    final_message: pesanJadi,\n    target: dataUser.sender_number\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        80
+      ],
+      "id": "format-sheet",
+      "name": "Format Sheet"
+    },
+    {
+      "parameters": {
+        "phone": "={{ $json.target }}",
+        "message": "={{ $json.final_message }}"
+      },
+      "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+      "typeVersion": 1,
+      "position": [
+        520,
+        80
+      ],
+      "id": "kirim-manual",
+      "name": "Reply: Dari Sheet"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Persiapan Data').first().json.pesan_asli }}",
+        "options": {
+          "systemMessage": "Kamu Eka Owner MahirPPT. Jawab singkat."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        300,
+        360
+      ],
+      "id": "tanya-gemini",
+      "name": "Tanya Gemini"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.googleGeminiChatModel",
+      "typeVersion": 1,
+      "position": [
+        260,
+        580
+      ],
+      "id": "model-gemini",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "fromView",
+          "value": ""
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "keyword": "={{ $('Persiapan Data').first().json.keyword }}",
+            "jawaban": "={{ $json.text }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "keyword",
+              "displayName": "keyword",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "jawaban",
+              "displayName": "jawaban",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        680,
+        360
+      ],
+      "id": "auto-learn",
+      "name": "Simpan ke DB"
+    },
+    {
+      "parameters": {
+        "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+        "message": "={{ $json.text }}"
+      },
+      "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+      "typeVersion": 1,
+      "position": [
+        900,
+        360
+      ],
+      "id": "kirim-ai",
+      "name": "Reply: Dari Gemini"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook GoWA": {
+      "main": [
+        [
+          {
+            "node": "Persiapan Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persiapan Data": {
+      "main": [
+        [
+          {
+            "node": "Klasifikasi Niat (Groq)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Klasifikasi Niat (Groq)": {
+      "main": [
+        [
+          {
+            "node": "Router Logika",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_language_model": [
+        [
+          {
+            "node": "Klasifikasi Niat (Groq)",
+            "type": "ai_language_model",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Router Logika": {
+      "main": [
+        [
+          {
+            "node": "GoWA: Kirim Katalog (Edit)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "GoWA: Kirim Freebie (Edit)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Cek Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek Database": {
+      "main": [
+        [
+          {
+            "node": "Ketemu di Sheet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ketemu di Sheet?": {
+      "main": [
+        [
+          {
+            "node": "Format Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tanya Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Sheet": {
+      "main": [
+        [
+          {
+            "node": "Reply: Dari Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_language_model": [
+        [
+          {
+            "node": "Tanya Gemini",
+            "type": "ai_language_model",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tanya Gemini": {
+      "main": [
+        [
+          {
+            "node": "Simpan ke DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simpan ke DB": {
+      "main": [
+        [
+          {
+            "node": "Reply: Dari Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

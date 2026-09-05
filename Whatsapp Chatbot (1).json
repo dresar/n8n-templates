@@ -1,0 +1,405 @@
+{
+  "name": "Bot Hybrid: Sheet + Gemini Auto-Learn",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gowa-listener",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -944,
+        144
+      ],
+      "id": "e2810d61-6440-451c-ba7f-c6faa861237f",
+      "name": "Webhook GoWA",
+      "webhookId": "53ee5057-b34b-4d60-9f4b-fdf96090e58a"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Ambil data Body dengan aman\nconst inputData = $input.first().json.body || {};\n\n// 2. Ambil Nama User\nconst namaUser = inputData.pushname || \"Kak\";\n\n// 3. Tentukan Waktu\nconst jam = new Date().getHours();\nlet sapaanWaktu = \"Pagi\";\nif (jam >= 11 && jam < 15) sapaanWaktu = \"Siang\";\nelse if (jam >= 15 && jam < 19) sapaanWaktu = \"Sore\";\nelse if (jam >= 19 || jam < 4) sapaanWaktu = \"Malam\";\n\n// 4. Safety Check & Keyword Clean\nlet keywordRaw = \"\";\nif (inputData.message && inputData.message.text) {\n  keywordRaw = inputData.message.text;\n} else if (inputData.message && inputData.message.conversation) {\n  keywordRaw = inputData.message.conversation;\n}\n\n// 5. INI BAGIAN PENTINGNYA:\nconst pesanAsli = keywordRaw;\nconst keywordBersih = keywordRaw.toLowerCase().trim();\n\nreturn {\n  json: {\n    keyword: keywordBersih,\n    pesan_asli: pesanAsli,   // <-- Ini yang akan kita kirim ke AI nanti\n    sender_number: inputData.from,\n    sender_name: namaUser,\n    waktu: sapaanWaktu\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        144
+      ],
+      "id": "dba6a05b-a928-4469-917b-8c6bf7970f81",
+      "name": "Persiapan Data"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1h5VAoizq9vClfwm1cVkrhy5BIBtmAIrd753iRwpmv-8",
+          "mode": "fromView"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 357342572,
+          "mode": "list",
+          "cachedResultName": "buatkan saya google sheet nya  balasanya  sehari...",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1h5VAoizq9vClfwm1cVkrhy5BIBtmAIrd753iRwpmv-8/edit#gid=357342572"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "keyword",
+              "lookupValue": "={{ $('Persiapan Data').first().json.keyword }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -496,
+        144
+      ],
+      "id": "298ee4ea-8dac-4874-a6da-b6004e4feb18",
+      "name": "Cari di Database",
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "G5lx33tqZ3uR7aFH",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.pesan_balasan }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        144
+      ],
+      "id": "63ccf5e7-1a22-4286-a798-c90a857e0fe4",
+      "name": "Ketemu di Sheet?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// JALUR MANUAL (Database)\nlet pesanJadi = $input.first().json.pesan_balasan;\nconst dataUser = $('Persiapan Data').first().json;\n\n// Replace Variable\npesanJadi = pesanJadi.replace(/%NAMA%/g, dataUser.sender_name);\npesanJadi = pesanJadi.replace(/%WAKTU%/g, dataUser.waktu);\n\nreturn {\n  json: {\n    final_message: pesanJadi,\n    target: dataUser.sender_number\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "5753d006-0c2e-4a87-9b34-09f8ba8b016f",
+      "name": "Format Jawaban Sheet"
+    },
+    {
+      "parameters": {
+        "phoneNumber": "={{ $('Persiapan Data').first().json.sender_number }}",
+        "message": "={{ $json.final_message }}"
+      },
+      "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+      "typeVersion": 1,
+      "position": [
+        240,
+        0
+      ],
+      "id": "689b9cd8-c394-4db2-b4e3-2827f4585a08",
+      "name": "Kirim Manual",
+      "credentials": {
+        "goWhatsappApi": {
+          "id": "CgrsrU1tHXr7MGKL",
+          "name": "GOWA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Persiapan Data').first().json.pesan_asli }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "\"Kamu adalah Eka, Owner MahirPTT. Jawablah pertanyaan user dengan santai, ramah, dan membantu. Gunakan bahasa Indonesia sehari-hari.\""
+            }
+          ]
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        288
+      ],
+      "id": "210fd002-29a4-4366-a18e-7e92832924ce",
+      "name": "Tanya Gemini",
+      "inputs": [
+        {
+          "index": 0,
+          "node": "Ketemu di Sheet?",
+          "type": "main",
+          "outputIndex": 1
+        },
+        {
+          "index": 0,
+          "node": "Google Gemini Chat Model",
+          "type": "ai_language_model",
+          "outputIndex": 0
+        }
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1h5VAoizq9vClfwm1cVkrhy5BIBtmAIrd753iRwpmv-8",
+          "mode": "fromView"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 357342572,
+          "mode": "list",
+          "cachedResultName": "buatkan saya google sheet nya  balasanya  sehari...",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1h5VAoizq9vClfwm1cVkrhy5BIBtmAIrd753iRwpmv-8/edit#gid=357342572"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "keyword": "={{ $('Persiapan Data').first().json.keyword }}",
+            "pesan_balasan": "={{ $json.text }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "keyword",
+              "displayName": "keyword",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "pesan_balasan",
+              "displayName": "pesan_balasan",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        544,
+        288
+      ],
+      "id": "4a3a5d43-c03e-4326-84e6-d54aa4090f44",
+      "name": "Simpan Jawaban Baru",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "G5lx33tqZ3uR7aFH",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "phoneNumber": "={{ $('Persiapan Data').first().json.sender_number }}",
+        "message": "={{ $json.pesan_balasan }}"
+      },
+      "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+      "typeVersion": 1,
+      "position": [
+        848,
+        304
+      ],
+      "id": "22e6752d-71d4-4b3c-8054-533b13cbb3d3",
+      "name": "Kirim Balasan AI",
+      "credentials": {
+        "goWhatsappApi": {
+          "id": "CgrsrU1tHXr7MGKL",
+          "name": "GOWA account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        480
+      ],
+      "id": "4dc163d9-935a-436b-8e38-b46e7397a4b7",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "pka5kSVgDNzvugtF",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "{{ $('Persiapan Data').first().json.sender_number }}\n\nKODE UNTUK NUMBER\n\n{{ $('Persiapan Data').first().json.keyword }}",
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -912,
+        432
+      ],
+      "typeVersion": 1,
+      "id": "b7f8c2fe-1ad9-43fb-ac1a-240c09dd3770",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        240,
+        912
+      ],
+      "id": "982a26e8-b15f-43ea-8f59-d59023aaac0f",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "FL1tBoLugbXuqOiY",
+          "name": "Groq account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook GoWA": {
+      "main": [
+        [
+          {
+            "node": "Persiapan Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Persiapan Data": {
+      "main": [
+        [
+          {
+            "node": "Cari di Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cari di Database": {
+      "main": [
+        [
+          {
+            "node": "Ketemu di Sheet?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ketemu di Sheet?": {
+      "main": [
+        [
+          {
+            "node": "Format Jawaban Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tanya Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Jawaban Sheet": {
+      "main": [
+        [
+          {
+            "node": "Kirim Manual",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tanya Gemini": {
+      "main": [
+        [
+          {
+            "node": "Simpan Jawaban Baru",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simpan Jawaban Baru": {
+      "main": [
+        [
+          {
+            "node": "Kirim Balasan AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Tanya Gemini",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7b09c2e2-80b6-45fd-a3e7-dd8dfe7c040d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "07da48d1cadfe03b9255025723ad348344a7ef669fa04da754b66fb512affecd"
+  },
+  "id": "jGKFQP5r6cWY3plm",
+  "tags": []
+}

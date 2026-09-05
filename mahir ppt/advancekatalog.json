@@ -1,0 +1,79 @@
+{
+    "nodes": [
+      {
+        "parameters": {
+          "operation": "read",
+          "documentId": {
+            "__rl": true,
+            "mode": "fromView",
+            "value": ""
+          },
+          "sheetName": {
+            "__rl": true,
+            "mode": "list",
+            "value": ""
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.googleSheets",
+        "typeVersion": 4.5,
+        "position": [
+          0,
+          0
+        ],
+        "id": "ambil-produk",
+        "name": "Ambil List Produk"
+      },
+      {
+        "parameters": {
+          "jsCode": "// OPTIMALISASI LIST PRODUK\n// Kode ini merubah data Excel jadi chat WA yang rapi\n\nconst items = $input.all();\nlet listProduk = \"✨ *DAFTAR PRODUK MAHIRPPT* ✨\\n\\n\";\n\n// Looping semua produk\nitems.forEach((item, index) => {\n  const p = item.json;\n  // Format: 1. Nama Produk (Harga) - Link\n  listProduk += `${index + 1}. *${p.nama_produk}*\\n   💰 Rp ${p.harga}\\n   🔗 ${p.link}\\n\\n`;\n});\n\nlistProduk += \"Ketik nama produk untuk membeli ya Kak! 😊\";\n\nreturn { json: { text: listProduk } };"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          220,
+          0
+        ],
+        "id": "format-katalog",
+        "name": "Optimalkan Teks"
+      },
+      {
+        "parameters": {
+          "phone": "={{ $('Persiapan Data').first().json.sender_number }}",
+          "message": "={{ $json.text }}"
+        },
+        "type": "@aldinokemal2104/n8n-nodes-gowa.gowa",
+        "typeVersion": 1,
+        "position": [
+          440,
+          0
+        ],
+        "id": "kirim-katalog-list",
+        "name": "Kirim List Katalog"
+      }
+    ],
+    "connections": {
+      "Ambil List Produk": {
+        "main": [
+          [
+            {
+              "node": "Optimalkan Teks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Optimalkan Teks": {
+        "main": [
+          [
+            {
+              "node": "Kirim List Katalog",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    }
+  }
